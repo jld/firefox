@@ -100,6 +100,20 @@ void ForkServiceChild::StopForkServer() {
   // cycles via the GeckoChildProcessHost dtor.
 }
 
+void ForkServiceChild::EnterShutdown() {
+  RefPtr<ForkServiceChild> self;
+  {
+    StaticMutexAutoLock smal(sMutex);
+    self = sSingleton;
+  }
+  MOZ_ASSERT(self);
+  if (self && self->mProcess) {
+    self->mTakenHandle = self->mProcess->TakeChildProcessHandle();
+    self->mProcess->Destroy();
+    self->mProcess = nullptr;
+  }
+}
+
 RefPtr<ForkServiceChild> ForkServiceChild::Get() {
   RefPtr<ForkServiceChild> child;
   {
@@ -117,8 +131,13 @@ ForkServiceChild::ForkServiceChild(int aFd, GeckoChildProcessHost* aProcess)
 }
 
 ForkServiceChild::~ForkServiceChild() {
-  mProcess->Destroy();
   close(mTcver->GetFD());
+  if (mProcess) {
+    mProcess->Destroy();
+  }
+  if (mTakenHandle) {
+    ProcessWatcher::EnsureProcessTerminated(mTakenHandle);
+  }
 }
 
 Result<Ok, LaunchError> ForkServiceChild::SendForkNewSubprocess(
@@ -254,18 +273,18 @@ void ForkServiceChild::OnError() {
 
 NS_IMPL_ISUPPORTS(ForkServerLauncher, nsIObserver)
 
-bool ForkServerLauncher::mHaveStartedClient = false;
-StaticRefPtr<ForkServerLauncher> ForkServerLauncher::mSingleton;
+bool ForkServerLauncher::sHaveStartedClient = false;
+StaticRefPtr<ForkServerLauncher> ForkServerLauncher::sSingleton;
 
 ForkServerLauncher::ForkServerLauncher() {}
 
 ForkServerLauncher::~ForkServerLauncher() {}
 
 already_AddRefed<ForkServerLauncher> ForkServerLauncher::Create() {
-  if (mSingleton == nullptr) {
-    mSingleton = new ForkServerLauncher();
+  if (sSingleton == nullptr) {
+    sSingleton = new ForkServerLauncher();
   }
-  RefPtr<ForkServerLauncher> launcher = mSingleton;
+  RefPtr<ForkServerLauncher> launcher = sSingleton;
   return launcher.forget();
 }
 
@@ -278,9 +297,9 @@ ForkServerLauncher::Observe(nsISupports* aSubject, const char* aTopic,
     MOZ_ASSERT(obsSvc != nullptr);
     // preferences are not available until final-ui-startup
     obsSvc->AddObserver(this, "final-ui-startup", false);
-  } else if (!mHaveStartedClient && strcmp(aTopic, "final-ui-startup") == 0) {
+  } else if (!sHaveStartedClient && strcmp(aTopic, "final-ui-startup") == 0) {
     if (StaticPrefs::dom_ipc_forkserver_enable_AtStartup()) {
-      mHaveStartedClient = true;
+      sHaveStartedClient = true;
       ForkServiceChild::StartForkServer();
 
       nsCOMPtr<nsIObserverService> obsSvc =
@@ -288,19 +307,20 @@ ForkServerLauncher::Observe(nsISupports* aSubject, const char* aTopic,
       MOZ_ASSERT(obsSvc != nullptr);
       obsSvc->AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, false);
     } else {
-      mSingleton = nullptr;
+      sSingleton = nullptr;
     }
   }
 
   if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
-    if (mHaveStartedClient) {
-      mHaveStartedClient = false;
-      ForkServiceChild::StopForkServer();
+    if (sHaveStartedClient) {
+      sHaveStartedClient = false;
+      ForkServiceChild::EnterShutdown();
     }
 
     // To make leak checker happy!
-    mSingleton = nullptr;
+    sSingleton = nullptr;
   }
+
   return NS_OK;
 }
 
@@ -309,7 +329,7 @@ void ForkServerLauncher::RestartForkServer() {
   NS_SUCCEEDED(NS_DispatchToMainThreadQueue(
       NS_NewRunnableFunction("OnForkServerError",
                              [] {
-                               if (mSingleton) {
+                               if (sSingleton) {
                                  ForkServiceChild::StopForkServer();
                                  ForkServiceChild::StartForkServer();
                                }
