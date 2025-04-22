@@ -175,6 +175,7 @@ int GetEffectiveContentSandboxLevel() {
   if (level > 3 && !StaticPrefs::media_cubeb_sandbox()) {
     level = 3;
   }
+  // TODO maybe: warn if level 5 and conflicting prefs (direct GL etc.)?
 #endif
 #if defined(XP_WIN)
   // Sandbox level 8, which uses a USER_RESTRICTED access token level, breaks if

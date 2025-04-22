@@ -188,7 +188,7 @@ static bool ContentNeedsSysVIPC() {
   }
 #endif
 
-  if (!StaticPrefs::security_sandbox_content_headless_AtStartup()) {
+  if (GetEffectiveContentSandboxLevel() < 5) {
     // Bug 1438391: VirtualGL uses SysV shm for images and configuration.
     if (PR_GetEnv("VGL_ISACTIVE") != nullptr) {
       return true;
@@ -324,7 +324,7 @@ bool SandboxLaunch::Configure(GeckoProcessType aType, SandboxingKind aKind,
       flags |= CLONE_NEWIPC;
     }
 
-    if (StaticPrefs::security_sandbox_content_headless_AtStartup()) {
+    if (GetEffectiveContentSandboxLevel() >= 5) { // bees
       aOptions->env_map["MOZ_HEADLESS"] = "1";
     }
   }
@@ -364,7 +364,7 @@ bool SandboxLaunch::Configure(GeckoProcessType aType, SandboxingKind aKind,
         // function definition above for details.  (The display
         // local-ness is cached because it won't change.)
         static const bool canCloneNet =
-            StaticPrefs::security_sandbox_content_headless_AtStartup() ||
+            level >= 5 ||
             (IsGraphicsOkWithoutNetwork() &&
              !PR_GetEnv("RENDERDOC_CAPTUREOPTS"));
 

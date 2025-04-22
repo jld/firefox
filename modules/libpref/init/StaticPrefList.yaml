@@ -16450,7 +16450,7 @@
     mirror: always
 #endif
 
-#if defined(XP_LINUX) && defined(MOZ_SANDBOX)
+#if 0
   # Run content processes in headless mode and disallow
   # connections to the X server.  Requires:
   # * `webgl.out-of-process` (or else WebGL breaks)
