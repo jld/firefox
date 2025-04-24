@@ -54,6 +54,15 @@ struct ContentProcessSandboxParams {
       const Maybe<ipc::FileDescriptor>& aBroker);
 };
 
+// FIXME write comment when brain is words
+struct SocketProcessSandboxParams {
+  int mLevel = 0;
+  mozilla::UniqueFileHandle mBroker;
+
+  static SocketProcessSandboxParams ForThisProcess(
+      const Maybe<ipc::FileDescriptor>& aBroker);
+};
+
 // Call only if SandboxInfo::CanSandboxContent() returns true.
 // (No-op if the sandbox is disabled.)
 // isFileProcess determines whether we allow system wide file reads.
@@ -66,7 +75,7 @@ MOZ_EXPORT void SetMediaPluginSandbox(const char* aFilePath);
 
 MOZ_EXPORT void SetRemoteDataDecoderSandbox(int aBroker);
 
-MOZ_EXPORT void SetSocketProcessSandbox(int aBroker);
+MOZ_EXPORT void SetSocketProcessSandbox(SocketProcessSandboxParams&& aParams);
 
 MOZ_EXPORT void SetUtilitySandbox(int aBroker, ipc::SandboxingKind aKind);
 

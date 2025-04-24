@@ -36,7 +36,7 @@ UniquePtr<sandbox::bpf_dsl::Policy> GetDecoderSandboxPolicy(
     SandboxBrokerClient* aMaybeBroker);
 
 UniquePtr<sandbox::bpf_dsl::Policy> GetSocketProcessSandboxPolicy(
-    SandboxBrokerClient* aMaybeBroker);
+    SandboxBrokerClient* aMaybeBroker, SocketProcessSandboxParams&& aParams);
 
 UniquePtr<sandbox::bpf_dsl::Policy> GetUtilitySandboxPolicy(
     SandboxBrokerClient* aMaybeBroker);
