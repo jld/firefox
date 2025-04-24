@@ -1592,7 +1592,8 @@ pref("browser.bookmarks.editDialog.maxRecentFolders", 7);
   // only 2 levels:
   // 0 -> "no sandbox"
   // 1 -> "sandboxed, allows socket operations and reading necessary certs"
-  pref("security.sandbox.socket.process.level", 1);
+  // 2 -> default-deny for ioctl
+  pref("security.sandbox.socket.process.level", 2);
   pref("security.sandbox.content.write_path_whitelist", "");
   pref("security.sandbox.content.read_path_whitelist", "");
   pref("security.sandbox.content.syscall_whitelist", "");
