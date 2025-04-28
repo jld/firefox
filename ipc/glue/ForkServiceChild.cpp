@@ -233,8 +233,12 @@ auto ForkServiceChild::SendWaitPid(pid_t aPid, bool aBlock)
   // Both sides of the Result are isomorphic to int.
   bool isErr = false;
   int value = 0;
-  ReadParamInfallible(&reader, &isErr, "Error deserializing 'bool'");
-  ReadParamInfallible(&reader, &value, "Error deserializing 'int'");
+  if (!ReadParam(&reader, &isErr) || !ReadParam(&reader, &value)) {
+    MOZ_LOG(gForkServiceLog, LogLevel::Verbose,
+            ("deserialization error in waitpid reply"));
+    OnError();
+    return Err(EPROTO);
+  }
 
   // This can't use ?: because the types are different.
   if (isErr) {

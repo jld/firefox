@@ -6,6 +6,7 @@
 
 #include "mozilla/ipc/ForkServer.h"
 
+#include "base/eintr_wrapper.h"
 #include "chrome/common/chrome_switches.h"
 #include "ipc/IPCMessageUtilsSpecializations.h"
 #include "mozilla/BlockingResourceBase.h"
