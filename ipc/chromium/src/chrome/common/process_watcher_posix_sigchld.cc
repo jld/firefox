@@ -317,7 +317,9 @@ class ProcessCleaner final : public MessageLoopForIO::Watcher,
       }
       children = nullptr;
     }
-    ForkServiceChild::StopForkServer();
+#ifdef MOZ_ENABLE_FORKSERVER
+    mozilla::ipc::ForkServiceChild::StopForkServer();
+#endif
     delete this;
   }
 
