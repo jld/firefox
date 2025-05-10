@@ -38,8 +38,6 @@
 #  include "nsAppDirectoryServiceDefs.h"
 #endif
 
-#include <utility>
-
 #include "ProtocolUtils.h"
 #include "mozilla/LinkedList.h"
 #include "mozilla/Logging.h"
@@ -453,12 +451,6 @@ base::ProcessHandle GeckoChildProcessHost::GetChildProcessHandle() {
   return mChildProcessHandle;
 }
 
-base::ProcessHandle GeckoChildProcessHost::TakeChildProcessHandle() {
-  // See also: GetChildProcessHandle, SetAlreadyDead
-  mozilla::AutoWriteLock handleLock(mHandleLock);
-  return std::exchange(mChildProcessHandle, base::ProcessHandle(0));
-}
-
 base::ProcessId GeckoChildProcessHost::GetChildProcessId() {
   mozilla::AutoReadLock handleLock(mHandleLock);
   if (!mChildProcessHandle) {
@@ -497,6 +489,19 @@ void GeckoChildProcessHost::Destroy() {
 
   using Value = ProcessHandlePromise::ResolveOrRejectValue;
   mDestroying = true;
+
+  // Synchronously invoke `delete this` if we're already shutting the IO thread
+  // down to ensure we're cleaned up before the thread dies. This is safe as we
+  // can never resolve `mHandlePromise` after the IO thread goes away.
+  IOThread* ioThread = IOThread::Get();
+  if (ioThread->IsOnCurrentThread() && MessageLoop::current() &&
+      !MessageLoop::current()->IsAcceptingTasks()) {
+    delete this;
+    return;
+  }
+
+  // If we're not in shutdown, do this async, as we may still be waiting for the
+  // child process PID from the launcher thread.
   whenReady->Then(XRE_GetAsyncIOEventTarget(), __func__,
                   [this](const Value&) { delete this; });
 }

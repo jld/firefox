@@ -131,6 +131,8 @@ class Thread : PlatformThread::Delegate {
   // When a thread is running, the thread_id_ is non-zero.
   bool IsRunning() const { return thread_id_ != 0; }
 
+  bool IsOnCurrentThread() const { return thread_id_ == PlatformThread::CurrentId(); }
+
  protected:
   // Called just prior to starting the message loop
   virtual void Init() {}

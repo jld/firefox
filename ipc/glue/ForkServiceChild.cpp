@@ -100,20 +100,6 @@ void ForkServiceChild::StopForkServer() {
   // cycles via the GeckoChildProcessHost dtor.
 }
 
-void ForkServiceChild::EnterShutdown() {
-  RefPtr<ForkServiceChild> self;
-  {
-    StaticMutexAutoLock smal(sMutex);
-    self = sSingleton;
-  }
-  MOZ_ASSERT(self);
-  if (self && self->mProcess) {
-    self->mTakenHandle = self->mProcess->TakeChildProcessHandle();
-    self->mProcess->Destroy();
-    self->mProcess = nullptr;
-  }
-}
-
 RefPtr<ForkServiceChild> ForkServiceChild::Get() {
   RefPtr<ForkServiceChild> child;
   {
@@ -132,12 +118,9 @@ ForkServiceChild::ForkServiceChild(int aFd, GeckoChildProcessHost* aProcess)
 
 ForkServiceChild::~ForkServiceChild() {
   close(mTcver->GetFD());
-  if (mProcess) {
-    mProcess->Destroy();
-  }
-  if (mTakenHandle) {
-    ProcessWatcher::EnsureProcessTerminated(mTakenHandle);
-  }
+  // This can be synchronous during browser shutdown, so do it *after*
+  // causing the fork server to exit by closning the socket:
+  mProcess->Destroy();
 }
 
 Result<Ok, LaunchError> ForkServiceChild::SendForkNewSubprocess(
@@ -312,10 +295,7 @@ ForkServerLauncher::Observe(nsISupports* aSubject, const char* aTopic,
   }
 
   if (strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID) == 0) {
-    if (sHaveStartedClient) {
-      sHaveStartedClient = false;
-      ForkServiceChild::EnterShutdown();
-    }
+    sHaveStartedClient = false;
 
     // To make leak checker happy!
     sSingleton = nullptr;

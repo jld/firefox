@@ -79,7 +79,6 @@ class ForkServiceChild final {
    */
   static void StartForkServer();
   static void StopForkServer();
-  static void EnterShutdown();
 
   /**
    * Return the singleton.  May return nullptr if the fork server is
@@ -104,10 +103,9 @@ class ForkServiceChild final {
   Mutex mMutex;
   UniquePtr<MiniTransceiver> mTcver MOZ_GUARDED_BY(mMutex);
   bool mFailed MOZ_GUARDED_BY(mMutex);  // crashed or disconnected.
-  // mProcess is accessed only by the dtor and `EnterShutdown` so
-  // should be inherently thread-safe
+  // mProcess is accessed only by the dtor so should be inherently
+  // thread-safe
   GeckoChildProcessHost* mProcess;
-  base::ProcessHandle mTakenHandle = 0;
 };
 
 /**
