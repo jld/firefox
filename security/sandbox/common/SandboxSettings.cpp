@@ -7,6 +7,7 @@
 #include "mozilla/SandboxSettings.h"
 #include "mozISandboxSettings.h"
 #include "nsServiceManagerUtils.h"
+#include "nsAppRunner.h"
 
 #include "mozilla/Components.h"
 #include "mozilla/Preferences.h"
@@ -20,7 +21,6 @@
 #ifdef XP_WIN
 #  include "mozilla/gfx/gfxVars.h"
 #  include "mozilla/WindowsVersion.h"
-#  include "nsAppRunner.h"
 #  include "nsExceptionHandler.h"
 #  include "PDMFactory.h"
 #endif  // XP_WIN
@@ -175,7 +175,10 @@ int GetEffectiveContentSandboxLevel() {
   if (level > 3 && !StaticPrefs::media_cubeb_sandbox()) {
     level = 3;
   }
-  // TODO maybe: warn if level 5 and conflicting prefs (direct GL etc.)?
+  // Turn off ioctl lockdown in safe mode, until it's gotten more testing.
+  if (level > 5 && gSafeMode) {
+    level = 5;
+  }
 #endif
 #if defined(XP_WIN)
   // Sandbox level 8, which uses a USER_RESTRICTED access token level, breaks if
@@ -202,6 +205,13 @@ int GetEffectiveSocketProcessSandboxLevel() {
 
   int level =
       StaticPrefs::security_sandbox_socket_process_level_DoNotUseDirectly();
+
+#ifdef XP_LINUX
+  // Turn off ioctl lockdown in safe mode, until it's gotten more testing.
+  if (level > 1 && gSafeMode) {
+    level = 1;
+  }
+#endif
 
   return level;
 }
