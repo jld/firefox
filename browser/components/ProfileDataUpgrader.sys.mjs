@@ -885,6 +885,20 @@ export let ProfileDataUpgrader = {
       Services.prefs.setCharPref(kPref, migrations.join(","));
     }
 
+    if (existingDataVersion < 155) {
+      // Bug 1965103 - old headless=false is now level=4
+      const kPrefHeadless = "security.sandbox.content.headless";
+      const kPrefLevel = "security.sandbox.content.level";
+
+      if (Services.prefs.prefHasUserValue(kPrefHeadless)) {
+        if (!Services.prefs.getBoolPref(kPrefHeadless) &&
+            !Services.prefs.prefHasUserValue(kPrefLevel)) {
+          Services.prefs.setIntPref(kPrefLevel, 4);
+        }
+        Services.prefs.clearUserPref(kPrefHeadless);
+      }
+    }
+
     // Update the migration version.
     Services.prefs.setIntPref("browser.migration.version", newVersion);
   },
