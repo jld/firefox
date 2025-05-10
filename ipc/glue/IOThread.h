@@ -29,8 +29,6 @@ class IOThread : private base::Thread {
     return base::Thread::message_loop()->SerialEventTarget();
   }
 
-  using base::Thread::IsOnCurrentThread;
-
  protected:
   IOThread(const char* aName);
   ~IOThread();
@@ -81,8 +79,8 @@ class IOThreadChild : public IOThread {
 };
 
 inline void AssertIOThread() {
-  MOZ_ASSERT(IOThread::Get()->IsOnCurrentThread(),
-             "should be on the async IO thread");
+  MOZ_ASSERT(MessageLoop::TYPE_IO == MessageLoop::current()->type(),
+             "should be on the IO thread!");
 }
 
 }  // namespace mozilla::ipc

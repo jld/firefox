@@ -493,9 +493,9 @@ void GeckoChildProcessHost::Destroy() {
   // Synchronously invoke `delete this` if we're already shutting the IO thread
   // down to ensure we're cleaned up before the thread dies. This is safe as we
   // can never resolve `mHandlePromise` after the IO thread goes away.
-  IOThread* ioThread = IOThread::Get();
-  if (ioThread->IsOnCurrentThread() && MessageLoop::current() &&
-      !MessageLoop::current()->IsAcceptingTasks()) {
+  MessageLoop* loop = MessageLoop::current();
+  if (loop && MessageLoop::TYPE_IO == loop->type() &&
+      !loop->IsAcceptingTasks()) {
     delete this;
     return;
   }

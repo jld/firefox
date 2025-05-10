@@ -107,7 +107,7 @@ void Thread::Stop() {
   if (!thread_was_started()) return;
 
   // We should only be called on the same thread that started us.
-  DCHECK(!IsOnCurrentThread());
+  DCHECK_NE(thread_id_, PlatformThread::CurrentId());
 
   // StopSoon may have already been called.
   if (message_loop_) {
@@ -134,7 +134,7 @@ void Thread::StopSoon() {
   if (!message_loop_) return;
 
   // We should only be called on the same thread that started us.
-  DCHECK(!IsOnCurrentThread());
+  DCHECK_NE(thread_id_, PlatformThread::CurrentId());
 
   // We had better have a message loop at this point!  If we do not, then it
   // most likely means that the thread terminated unexpectedly, probably due
@@ -160,46 +160,41 @@ void Thread::ThreadMain() {
   AUTO_PROFILER_REGISTER_THREAD(name_.c_str());
   mozilla::IOInterposer::RegisterCurrentThread();
 
-  {
-    // The message loop for this thread.
-    MessageLoop message_loop(startup_data_->options.message_loop_type,
-                             xpcomThread);
+  // The message loop for this thread.
+  MessageLoop message_loop(startup_data_->options.message_loop_type,
+                           xpcomThread);
 
-    xpcomThread = nullptr;
+  xpcomThread = nullptr;
 
-    // Complete the initialization of our Thread object.
-    thread_id_ = PlatformThread::CurrentId();
-    PlatformThread::SetName(name_.c_str());
-    NS_SetCurrentThreadName(name_.c_str());
-    message_loop.set_thread_name(name_);
-    message_loop.set_hang_timeouts(startup_data_->options.transient_hang_timeout,
-                                   startup_data_->options.permanent_hang_timeout);
-    message_loop_ = &message_loop;
+  // Complete the initialization of our Thread object.
+  thread_id_ = PlatformThread::CurrentId();
+  PlatformThread::SetName(name_.c_str());
+  NS_SetCurrentThreadName(name_.c_str());
+  message_loop.set_thread_name(name_);
+  message_loop.set_hang_timeouts(startup_data_->options.transient_hang_timeout,
+                                 startup_data_->options.permanent_hang_timeout);
+  message_loop_ = &message_loop;
 
-    // Let the thread do extra initialization.
-    // Let's do this before signaling we are started.
-    Init();
+  // Let the thread do extra initialization.
+  // Let's do this before signaling we are started.
+  Init();
 
-    startup_data_->event.Signal();
-    // startup_data_ can't be touched anymore since the starting thread is now
-    // unlocked.
+  startup_data_->event.Signal();
+  // startup_data_ can't be touched anymore since the starting thread is now
+  // unlocked.
 
-    message_loop.Run();
+  message_loop.Run();
 
-    // Let the thread do extra cleanup.
-    CleanUp();
+  // Let the thread do extra cleanup.
+  CleanUp();
 
-    // Assert that MessageLoop::Quit was called by ThreadQuitTask.
-    DCHECK(GetThreadWasQuitProperly());
+  // Assert that MessageLoop::Quit was called by ThreadQuitTask.
+  DCHECK(GetThreadWasQuitProperly());
 
-    mozilla::IOInterposer::UnregisterCurrentThread();
+  mozilla::IOInterposer::UnregisterCurrentThread();
 
-    // We can't receive messages anymore.
-    message_loop_ = NULL;
-
-    // Destroy `message_loop` before clearing thread_id_
-  }
-  // Clear thread_id_ before the thread stops running
+  // We can't receive messages anymore.
+  message_loop_ = NULL;
   thread_id_ = 0;
 }
 
