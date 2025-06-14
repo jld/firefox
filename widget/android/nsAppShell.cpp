@@ -37,7 +37,7 @@
 #include "mozilla/dom/Document.h"
 #include "mozilla/gfx/gfxVars.h"
 #include "mozilla/intl/OSPreferences.h"
-#include "mozilla/ipc/GeckoChildProcessHost.h"
+#include "mozilla/ipc/LaunchEventTarget.h"
 #include "mozilla/java/GeckoAppShellNatives.h"
 #include "mozilla/java/GeckoDragAndDropNatives.h"
 #include "mozilla/java/GeckoResultWrappers.h"
@@ -386,7 +386,7 @@ class XPCOMEventTargetWrapper final
     java::XPCOMEventTarget::Natives<XPCOMEventTargetWrapper>::Init();
     CreateWrapper(u"main"_ns, do_GetMainThread());
     if (XRE_IsParentProcess()) {
-      CreateWrapper(u"launcher"_ns, ipc::GetIPCLauncher());
+      CreateWrapper(u"launcher"_ns, ipc::GetLaunchEventTarget());
     }
   }
 

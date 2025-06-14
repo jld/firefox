@@ -39,7 +39,7 @@ xpcom/tests/gtest/TestHandleWatcher.cpp
 dom/indexedDB/ActorsParent.cpp
 dom/quota/ActorsParent.cpp
 DecodePool.cpp
-GeckoChildProcessHost.cpp
+LaunchEventTarget.cpp
 LazyIdleThread.cpp
 LazyIdleThread.h
 VRThread.cpp

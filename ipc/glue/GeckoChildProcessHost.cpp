@@ -46,7 +46,6 @@
 #include "mozilla/Omnijar.h"
 #include "mozilla/RDDProcessHost.h"
 #include "mozilla/Services.h"
-#include "mozilla/SharedThreadPool.h"
 #include "mozilla/StaticMutex.h"
 #include "mozilla/TaskQueue.h"
 #include "mozilla/glean/DomMetrics.h"
@@ -54,6 +53,7 @@
 #include "mozilla/UniquePtrExtensions.h"
 #include "mozilla/ipc/IOThread.h"
 #include "mozilla/ipc/EnvironmentMap.h"
+#include "mozilla/ipc/LaunchEventTarget.h"
 #include "mozilla/ipc/NodeController.h"
 #include "mozilla/net/SocketProcessHost.h"
 #include "nsDirectoryService.h"
@@ -172,7 +172,7 @@ class BaseProcessLauncher {
     SprintfLiteral(mChildIDString, "%d", aHost->mChildID);
 
     // Compute the serial event target we'll use for launching.
-    nsCOMPtr<nsIEventTarget> threadOrPool = GetIPCLauncher();
+    nsCOMPtr<nsIEventTarget> threadOrPool = GetLaunchEventTarget();
     mLaunchThread =
         TaskQueue::Create(threadOrPool.forget(), "BaseProcessLauncher");
 
@@ -951,84 +951,6 @@ void BaseProcessLauncher::GetChildLogName(const char* origLogName,
   buffer.AppendLiteral(".child-");
   buffer.AppendASCII(mChildIDString);
 }
-
-// Windows needs a single dedicated thread for process launching,
-// because of thread-safety restrictions/assertions in the sandbox
-// code.
-//
-// Android also needs a single dedicated thread to simplify thread
-// safety in java.
-//
-// Fork server needs a dedicated thread for accessing
-// |ForkServiceChild|.
-#if defined(XP_WIN) || defined(MOZ_WIDGET_ANDROID) || \
-    defined(MOZ_ENABLE_FORKSERVER)
-
-static mozilla::StaticMutex gIPCLaunchThreadMutex;
-static mozilla::StaticRefPtr<nsIThread> gIPCLaunchThread
-    MOZ_GUARDED_BY(gIPCLaunchThreadMutex);
-
-class IPCLaunchThreadObserver final : public nsIObserver {
- public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIOBSERVER
- protected:
-  virtual ~IPCLaunchThreadObserver() = default;
-};
-
-NS_IMPL_ISUPPORTS(IPCLaunchThreadObserver, nsIObserver, nsISupports)
-
-NS_IMETHODIMP
-IPCLaunchThreadObserver::Observe(nsISupports* aSubject, const char* aTopic,
-                                 const char16_t* aData) {
-  MOZ_RELEASE_ASSERT(strcmp(aTopic, "xpcom-shutdown-threads") == 0);
-
-  nsCOMPtr<nsIThread> thread;
-  {
-    StaticMutexAutoLock lock(gIPCLaunchThreadMutex);
-    thread = gIPCLaunchThread.forget();
-  }
-
-  nsresult rv = thread ? thread->Shutdown() : NS_OK;
-  mozilla::Unused << NS_WARN_IF(NS_FAILED(rv));
-  return rv;
-}
-
-nsCOMPtr<nsIEventTarget> GetIPCLauncher() {
-  StaticMutexAutoLock lock(gIPCLaunchThreadMutex);
-  if (!gIPCLaunchThread) {
-    nsCOMPtr<nsIThread> thread;
-    nsresult rv = NS_NewNamedThread("IPC Launch"_ns, getter_AddRefs(thread));
-    if (!NS_WARN_IF(NS_FAILED(rv))) {
-      NS_DispatchToMainThread(
-          NS_NewRunnableFunction("GeckoChildProcessHost::GetIPCLauncher", [] {
-            nsCOMPtr<nsIObserverService> obsService =
-                mozilla::services::GetObserverService();
-            nsCOMPtr<nsIObserver> obs = new IPCLaunchThreadObserver();
-            obsService->AddObserver(obs, "xpcom-shutdown-threads", false);
-          }));
-      gIPCLaunchThread = thread.forget();
-    }
-  }
-
-  nsCOMPtr<nsIEventTarget> thread = gIPCLaunchThread.get();
-  MOZ_DIAGNOSTIC_ASSERT(thread);
-  return thread;
-}
-
-#else  // defined(XP_WIN) || defined(MOZ_WIDGET_ANDROID) ||
-       // defined(MOZ_ENABLE_FORKSERVER)
-
-// Other platforms use an on-demand thread pool.
-
-nsCOMPtr<nsIEventTarget> GetIPCLauncher() {
-  nsCOMPtr<nsIEventTarget> pool =
-      mozilla::SharedThreadPool::Get("IPC Launch"_ns);
-  MOZ_DIAGNOSTIC_ASSERT(pool);
-  return pool;
-}
-
-#endif  // XP_WIN || MOZ_WIDGET_ANDROID || MOZ_ENABLE_FORKSERVER
 
 void
 #if defined(XP_WIN)

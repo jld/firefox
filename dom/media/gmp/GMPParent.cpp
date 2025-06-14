@@ -46,6 +46,7 @@
 #  include "WMFDecoderModule.h"
 #endif
 #if defined(MOZ_WIDGET_ANDROID)
+#  include "mozilla/ipc/LaunchEventTarget.h"
 #  include "mozilla/java/GeckoProcessManagerWrappers.h"
 #  include "mozilla/java/GeckoProcessTypeWrappers.h"
 #endif  // defined(MOZ_WIDGET_ANDROID)
@@ -677,7 +678,7 @@ void GMPParent::DeleteProcess() {
 
 #if defined(MOZ_WIDGET_ANDROID)
   if (mState != GMPState::NotLoaded) {
-    nsCOMPtr<nsIEventTarget> launcherThread(ipc::GetIPCLauncher());
+    nsCOMPtr<nsIEventTarget> launcherThread(ipc::GetLaunchEventTarget());
     MOZ_ASSERT(launcherThread);
 
     auto procType = java::GeckoProcessType::GMPLUGIN();

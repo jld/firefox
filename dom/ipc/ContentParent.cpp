@@ -281,6 +281,7 @@
 
 #ifdef MOZ_WIDGET_ANDROID
 #  include "AndroidBridge.h"
+#  include "mozilla/ipc/LaunchEventTarget.h"
 #  include "mozilla/java/GeckoProcessManagerWrappers.h"
 #  include "mozilla/java/GeckoProcessTypeWrappers.h"
 #endif
@@ -1844,7 +1845,7 @@ void ContentParent::MarkAsDead() {
     // The exception is in MOZ_PROFILE_GENERATE builds where we must allow the
     // process to shutdown cleanly so that profile data can be dumped. This is
     // okay as we will not reach our process limit during the profile run.
-    nsCOMPtr<nsIEventTarget> launcherThread(GetIPCLauncher());
+    nsCOMPtr<nsIEventTarget> launcherThread(GetLaunchEventTarget());
     MOZ_ASSERT(launcherThread);
 
     auto procType = java::GeckoProcessType::CONTENT();
