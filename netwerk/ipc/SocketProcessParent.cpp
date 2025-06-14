@@ -35,6 +35,7 @@
 #  include "mozilla/net/WebrtcTCPSocketParent.h"
 #endif
 #if defined(MOZ_WIDGET_ANDROID)
+#  include "mozilla/ipc/LaunchEventTarget.h"
 #  include "mozilla/java/GeckoProcessManagerWrappers.h"
 #  include "mozilla/java/GeckoProcessTypeWrappers.h"
 #endif  // defined(MOZ_WIDGET_ANDROID)
@@ -69,7 +70,7 @@ already_AddRefed<SocketProcessParent> SocketProcessParent::GetSingleton() {
 
 void SocketProcessParent::ActorDestroy(ActorDestroyReason aWhy) {
 #if defined(MOZ_WIDGET_ANDROID)
-  nsCOMPtr<nsIEventTarget> launcherThread(ipc::GetIPCLauncher());
+  nsCOMPtr<nsIEventTarget> launcherThread(ipc::GetLaunchEventTarget());
   MOZ_ASSERT(launcherThread);
 
   auto procType = java::GeckoProcessType::SOCKET();

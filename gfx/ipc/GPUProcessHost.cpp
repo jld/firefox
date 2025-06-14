@@ -16,6 +16,7 @@
 #include "VRGPUChild.h"
 #include "mozilla/ipc/ProcessUtils.h"
 #ifdef MOZ_WIDGET_ANDROID
+#  include "mozilla/ipc/LaunchEventTarget.h"
 #  include "mozilla/java/GeckoProcessManagerWrappers.h"
 #endif
 
@@ -134,7 +135,7 @@ void GPUProcessHost::InitAfterConnect(bool aSucceeded) {
     mGPUChild->Init();
 
 #ifdef MOZ_WIDGET_ANDROID
-    nsCOMPtr<nsIEventTarget> launcherThread(GetIPCLauncher());
+    nsCOMPtr<nsIEventTarget> launcherThread(GetLaunchEventTarget());
     MOZ_ASSERT(launcherThread);
     layers::SynchronousTask task(
         "GeckoProcessManager::GetCompositorSurfaceManager");
