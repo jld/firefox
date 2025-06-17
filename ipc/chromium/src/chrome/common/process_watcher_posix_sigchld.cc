@@ -19,6 +19,7 @@
 #include "mozilla/DataMutex.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/ipc/IOThread.h"
+#include "mozilla/ipc/LaunchEventTarget.h"
 #include "nsITimer.h"
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
@@ -278,6 +279,17 @@ class ProcessCleaner final : public MessageLoopForIO::Watcher,
 #endif
       }
     } while (rv > 0);
+
+    // PruneDeadProcesses can block on the fork server lock if a
+    // launch is in progress, which we'd like to avoid on the I/O
+    // thread; send it to the launch event target if possible.
+    nsCOMPtr<nsIEventTarget> target = mozilla::ipc::GetLaunchEventTarget();
+    if (target) {
+      if (NS_SUCCEEDED(target->Dispatch(NS_NewRunnableFunction(
+              "PruneDeadProcesses", [] { PruneDeadProcesses(); })))) {
+        return;
+      }
+    }
     PruneDeadProcesses();
   }
 

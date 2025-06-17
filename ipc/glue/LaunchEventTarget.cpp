@@ -33,6 +33,7 @@ namespace mozilla::ipc {
 static mozilla::StaticMutex gIPCLaunchThreadMutex;
 static mozilla::StaticRefPtr<nsIThread> gIPCLaunchThread
     MOZ_GUARDED_BY(gIPCLaunchThreadMutex);
+static bool gIPCLaunchShutdown MOZ_GUARDED_BY(gIPCLaunchThreadMutex);
 
 class IPCLaunchThreadObserver final : public nsIObserver {
  public:
@@ -52,6 +53,7 @@ IPCLaunchThreadObserver::Observe(nsISupports* aSubject, const char* aTopic,
   nsCOMPtr<nsIThread> thread;
   {
     StaticMutexAutoLock lock(gIPCLaunchThreadMutex);
+    gIPCLaunchShutdown = true;
     thread = gIPCLaunchThread.forget();
   }
 
@@ -78,7 +80,7 @@ nsCOMPtr<nsIEventTarget> GetLaunchEventTarget() {
   }
 
   nsCOMPtr<nsIEventTarget> thread = gIPCLaunchThread.get();
-  MOZ_DIAGNOSTIC_ASSERT(thread);
+  MOZ_DIAGNOSTIC_ASSERT(gIPCLaunchShutdown == !thread);
   return thread;
 }
 
