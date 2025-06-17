@@ -67,6 +67,7 @@ static already_AddRefed<ILaunchEventTarget> CreateLaunchEventTarget() {
 static mozilla::StaticMutex gLaunchEventTargetMutex;
 static mozilla::StaticRefPtr<ILaunchEventTarget> gLaunchEventTarget
     MOZ_GUARDED_BY(gLaunchEventTargetMutex);
+static bool gLaunchShutdown MOZ_GUARDED_BY(gLaunchEventTargetMutex);
 
 class LaunchEventTargetObserver final : public nsIObserver {
  public:
@@ -86,6 +87,7 @@ LaunchEventTargetObserver::Observe(nsISupports* aSubject, const char* aTopic,
   nsCOMPtr<ILaunchEventTarget> target;
   {
     StaticMutexAutoLock lock(gLaunchEventTargetMutex);
+    gLaunchShutdown = true;
     target = gLaunchEventTarget.forget();
   }
 
@@ -111,7 +113,7 @@ nsCOMPtr<nsIEventTarget> GetLaunchEventTarget() {
   }
 
   nsCOMPtr<nsIEventTarget> target = gLaunchEventTarget.get();
-  MOZ_DIAGNOSTIC_ASSERT(target);
+  MOZ_DIAGNOSTIC_ASSERT(gLaunchShutdown == !target);
   return target;
 }
 
