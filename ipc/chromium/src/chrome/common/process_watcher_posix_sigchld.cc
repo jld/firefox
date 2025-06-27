@@ -18,6 +18,7 @@
 #include "base/process_util.h"
 #include "mozilla/DataMutex.h"
 #include "mozilla/StaticPtr.h"
+#include "mozilla/TimeStamp.h"
 #include "mozilla/ipc/IOThread.h"
 #include "mozilla/ipc/LaunchEventTarget.h"
 #include "nsITimer.h"
@@ -283,10 +284,23 @@ class ProcessCleaner final : public MessageLoopForIO::Watcher,
     // PruneDeadProcesses can block on the fork server lock if a
     // launch is in progress, which we'd like to avoid on the I/O
     // thread; send it to the launch event target if possible.
+    // (FIXME more words about the delay and flag.)
+    static constexpr unsigned kDelayMS = 250;
+    static mozilla::Atomic<bool> sNeedPrune;
+    static const mozilla::TimeStamp sBase = mozilla::TimeStamp::Now();
     nsCOMPtr<nsIEventTarget> target = mozilla::ipc::GetLaunchEventTarget();
+
     if (target) {
-      if (NS_SUCCEEDED(target->Dispatch(NS_NewRunnableFunction(
-              "PruneDeadProcesses", [] { PruneDeadProcesses(); })))) {
+      if (sNeedPrune.exchange(true)) {
+        printf_stderr("[%.6f] NO PRUNE TODAY\n", (mozilla::TimeStamp::Now() - sBase).ToSeconds());
+        return;
+      }
+      if (NS_SUCCEEDED(target->DelayedDispatch(NS_NewRunnableFunction(
+              "PruneDeadProcesses", [] {
+                sNeedPrune = false;
+                printf_stderr("[%.6f] YES PRUNE\n", (mozilla::TimeStamp::Now() - sBase).ToSeconds());
+                PruneDeadProcesses();
+              }), kDelayMS))) {
         return;
       }
     }
@@ -340,6 +354,7 @@ class ProcessCleaner final : public MessageLoopForIO::Watcher,
   MessageLoopForIO::FileDescriptorWatcher mWatcher;
 
   static void PruneDeadProcesses() {
+    const auto before = mozilla::TimeStamp::Now();
     auto lock = gPendingChildren.Lock();
     auto& children = lock.ref();
     if (!children || children->IsEmpty()) {
@@ -356,6 +371,8 @@ class ProcessCleaner final : public MessageLoopForIO::Watcher,
       }
     }
     *children = std::move(live);
+    const auto after = mozilla::TimeStamp::Now();
+    printf_stderr("PRUNE TIME: %.3f µs\n", (after - before).ToMicroseconds());
   }
 };
 
