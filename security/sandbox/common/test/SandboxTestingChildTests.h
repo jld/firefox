@@ -972,6 +972,12 @@ void RunTestsGMPlugin(SandboxTestingChild* child) {
     munmap(mapping, kMapSize);
   }
 
+  child->ErrnoValueTest("isatty"_ns, ENOTTY, [] {
+    // isatty returns 1 on success and 0 + sets errno on error,
+    // so subtract 1 to match a "normal" API
+    return isatty(0) - 1;
+  });
+
 #  elif XP_MACOSX  // XP_LINUX
   RunMacTestLaunchProcess(child);
   /* The Mac GMP process requires access to the window server */

@@ -6,6 +6,8 @@
 
 #include "SandboxFilter.h"
 
+#include <asm/ioctls.h>
+#include <asm/termbits.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/ioctl.h>
@@ -1344,23 +1346,19 @@ class SandboxPolicyCommon : public SandboxPolicyBase {
 
       case __NR_ioctl: {
         Arg<unsigned long> request(1);
-#ifdef MOZ_ASAN
-        Arg<int> fd(0);
-#endif  // MOZ_ASAN
         // Make isatty() return false, because none of the terminal
         // ioctls will be allowed; libraries sometimes call this for
         // various reasons (e.g., to decide whether to emit ANSI/VT
         // color codes when logging to stderr).  glibc uses TCGETS and
         // musl uses TIOCGWINSZ.
         //
-        // This is required by ffmpeg
-        return If(AnyOf(request == TCGETS, request == TIOCGWINSZ),
-                  Error(ENOTTY))
-#ifdef MOZ_ASAN
-            // ASAN's error reporter wants to know if stderr is a tty.
-            .ElseIf(fd == STDERR_FILENO, Error(ENOTTY))
-#endif  // MOZ_ASAN
-            .Else(SandboxPolicyBase::EvaluateSyscall(sysno));
+        // isatty has been observed being called by ffmpeg in the RDD
+        // process, and by ASan's error reporter; it's common enough
+        // that we might as well handle it in the common policy.
+        return Switch(request)
+            .Cases({TCGETS, TCGETS2, TIOCGWINSZ},
+                   Error(ENOTTY))
+            .Default(SandboxPolicyBase::EvaluateSyscall(sysno));
       }
 
       CASES_FOR_dup2:  // See ConnectTrapCommon
