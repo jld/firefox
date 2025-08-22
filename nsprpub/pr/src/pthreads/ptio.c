@@ -3931,7 +3931,7 @@ static PRInt32 _pr_poll_with_poll(PRPollDesc* pds, PRIntn npds,
           msecs = 0;
           break;
         case PR_INTERVAL_NO_TIMEOUT:
-          msecs = -1;
+          msecs = 5000;
           break;
         default:
           msecs = PR_IntervalToMilliseconds(timeout);
@@ -3940,6 +3940,10 @@ static PRInt32 _pr_poll_with_poll(PRPollDesc* pds, PRIntn npds,
 
     retry:
       ready = poll(syspoll, npds, msecs);
+      if (ready == 0 && timeout == PR_INTERVAL_NO_TIMEOUT) {
+          fprintf(stderr, "PR_Poll[%d]: waiting for %d\n", getpid(), npds);
+          goto retry;
+      }
       if (-1 == ready) {
         PRIntn oserror = errno;
 
