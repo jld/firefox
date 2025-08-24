@@ -3943,18 +3943,17 @@ static PRInt32 _pr_poll_with_poll(PRPollDesc* pds, PRIntn npds,
       if (ready == 0 && timeout == PR_INTERVAL_NO_TIMEOUT) {
           fprintf(stderr, "PR_Poll[%d]: waiting for %d:", getpid(), npds);
           for (index = 0; index < npds; ++index) {
-              char r = '?', buf;
-              ssize_t got = recv(syspoll[index].fd, &buf, 1,
-                                 MSG_PEEK | MSG_DONTWAIT);
-              if (got > 0) {
-                  r = '+';
-              } else if (got == 0) {
-                  r = '0';
-              } else if (errno == EWOULDBLOCK || errno == EAGAIN) {
-                  r = '-';
+              int fd = syspoll[index].fd, r;
+              struct stat sb;
+
+              if (fstat(fd, &sb) != 0) {
+                  memset(&sb, 0, sizeof(sb));
               }
-              fprintf(stderr, " %dp%xr%c", syspoll[index].fd,
-                      syspoll[index].events, r);
+              if (ioctl(fd, FIONREAD, &r) != 0) {
+                  r = -1;
+              }
+              fprintf(stderr, " %dp%xt%or%d", fd,
+                      syspoll[index].events, sb.st_mode >> 12, r);
           }
           fprintf(stderr, "\n");
           goto retry;
