@@ -3943,17 +3943,37 @@ static PRInt32 _pr_poll_with_poll(PRPollDesc* pds, PRIntn npds,
       if (ready == 0 && timeout == PR_INTERVAL_NO_TIMEOUT) {
           fprintf(stderr, "PR_Poll[%d]: waiting for %d:", getpid(), npds);
           for (index = 0; index < npds; ++index) {
-              int fd = syspoll[index].fd, r;
+              int fd = syspoll[index].fd, rev;
               struct stat sb;
+              struct pollfd pfdx;
 
               if (fstat(fd, &sb) != 0) {
                   memset(&sb, 0, sizeof(sb));
               }
-              if (ioctl(fd, FIONREAD, &r) != 0) {
-                  r = -1;
+              memset(&pfdx, 0, sizeof(pfdx));
+              pfdx.fd = fd;
+              pfdx.events = POLLIN | POLLPRI | POLLOUT |
+                      POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND;
+#ifdef POLLEXTEND
+              pfdx.events |= POLLEXTEND;
+#endif
+#ifdef POLLATTRIB
+              pfdx.events |= POLLATTRIB;
+#endif
+#ifdef POLLNLINK
+              pfdx.events |= POLLNLINK;
+#endif
+#ifdef POLLWRITE
+              pfdx.events |= POLLWRITE;
+#endif
+              if (poll(&pfdx, 1, 0) == -1) {
+                  rev = -errno;
+              } else {
+                  rev = pfdx.revents;
               }
-              fprintf(stderr, " %dp%xt%or%d", fd,
-                      syspoll[index].events, sb.st_mode >> 12, r);
+
+              fprintf(stderr, " %dp%xq%xt%o", fd,
+                      syspoll[index].events, rev, sb.st_mode >> 12);
           }
           fprintf(stderr, "\n");
           goto retry;
