@@ -3954,18 +3954,6 @@ static PRInt32 _pr_poll_with_poll(PRPollDesc* pds, PRIntn npds,
               pfdx.fd = fd;
               pfdx.events = POLLIN | POLLPRI | POLLOUT |
                       POLLRDNORM | POLLWRNORM | POLLRDBAND | POLLWRBAND;
-#ifdef POLLEXTEND
-              pfdx.events |= POLLEXTEND;
-#endif
-#ifdef POLLATTRIB
-              pfdx.events |= POLLATTRIB;
-#endif
-#ifdef POLLNLINK
-              pfdx.events |= POLLNLINK;
-#endif
-#ifdef POLLWRITE
-              pfdx.events |= POLLWRITE;
-#endif
               if (poll(&pfdx, 1, 0) == -1) {
                   rev = -errno;
               } else {
