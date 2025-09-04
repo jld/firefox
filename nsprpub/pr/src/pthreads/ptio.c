@@ -3931,7 +3931,7 @@ static PRInt32 _pr_poll_with_poll(PRPollDesc* pds, PRIntn npds,
           msecs = 0;
           break;
         case PR_INTERVAL_NO_TIMEOUT:
-          msecs = 5000;
+          msecs = 4000 + ((getpid() * 619) % 1001);
           break;
         default:
           msecs = PR_IntervalToMilliseconds(timeout);
