@@ -81,6 +81,12 @@
 #define IPV6_V6ONLY 27
 #endif
 
+#define _PR_DYNAMIC_SELECT
+#define _PR_SELECT_NFDSIZE __DARWIN_NFDBITS
+// FIXME this needs to be before <sys/select.h> is included by anyone;
+// try to check?
+#define _DARWIN_UNLIMITED_SELECT
+
 #ifdef __ppc__
 #define _PR_HAVE_ATOMIC_OPS
 #define _MD_INIT_ATOMIC()

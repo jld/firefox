@@ -3345,13 +3345,44 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
   int i;
   int rv;
   int maxfd;
-  fd_set rd, wr, ex;
+  fd_set *rdp, *wrp, *exp;
   struct timeval tv, *tvp;
+#ifdef _PR_DYNAMIC_SELECT
+  int setsize;
+#else
+  fd_set rd, wr, ex;
+#endif
 
   if (timeout < 0 && timeout != -1) {
     errno = EINVAL;
     return -1;
   }
+
+#ifdef _PR_DYNAMIC_SELECT
+  // FIXME: this computes maxfd twice (and not strictly the same,
+  // because pollfds can be excluded from the latter one)
+  maxfd = -1;
+  for (i = 0; i < nfds; i++) {
+    int osfd = filedes[i].fd;
+
+    if (osfd > maxfd) {
+      maxfd = osfd;
+    }
+  }
+  setsize = PR_ROUNDUP(maxfd + 1, _PR_SELECT_NFDSIZE) / 8;
+  // FIXME: hard-coded NBBY is sus
+  // FIXME: no handling for errors
+  rdp = PR_CALLOC(setsize);
+  wrp = PR_CALLOC(setsize);
+  exp = PR_CALLOC(setsize);
+#else
+  FD_ZERO(&rd);
+  FD_ZERO(&wr);
+  FD_ZERO(&ex);
+  rdp = &rd;
+  wrp = &wr;
+  exp = &ex;
+#endif
 
   if (timeout == -1) {
     tvp = NULL;
@@ -3362,19 +3393,17 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
   }
 
   maxfd = -1;
-  FD_ZERO(&rd);
-  FD_ZERO(&wr);
-  FD_ZERO(&ex);
-
   for (i = 0; i < nfds; i++) {
     int osfd = filedes[i].fd;
     int events = filedes[i].events;
     PRBool fdHasEvent = PR_FALSE;
 
+#ifndef _PR_DYNAMIC_SELECT
     PR_ASSERT(osfd < FD_SETSIZE);
     if (osfd < 0 || osfd >= FD_SETSIZE) {
       continue; /* Skip this osfd. */
     }
+#endif
 
     /*
      * Map the poll events to the select fd_sets.
@@ -3389,15 +3418,15 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
      */
 
     if (events & (POLLIN | POLLRDNORM)) {
-      FD_SET(osfd, &rd);
+      FD_SET(osfd, rdp);
       fdHasEvent = PR_TRUE;
     }
     if (events & (POLLOUT | POLLWRNORM)) {
-      FD_SET(osfd, &wr);
+      FD_SET(osfd, wrp);
       fdHasEvent = PR_TRUE;
     }
     if (events & (POLLPRI | POLLRDBAND)) {
-      FD_SET(osfd, &ex);
+      FD_SET(osfd, exp);
       fdHasEvent = PR_TRUE;
     }
     if (fdHasEvent && osfd > maxfd) {
@@ -3405,7 +3434,7 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
     }
   }
 
-  rv = select(maxfd + 1, &rd, &wr, &ex, tvp);
+  rv = select(maxfd + 1, rdp, wrp, exp, tvp);
 
   /* Compute poll results */
   if (rv > 0) {
@@ -3417,11 +3446,13 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
       if (filedes[i].fd < 0) {
         continue;
       }
+#ifndef _PR_DYNAMIC_SELECT
       if (filedes[i].fd >= FD_SETSIZE) {
         filedes[i].revents |= POLLNVAL;
         continue;
       }
-      if (FD_ISSET(filedes[i].fd, &rd)) {
+#endif
+      if (FD_ISSET(filedes[i].fd, rdp)) {
         if (filedes[i].events & POLLIN) {
           filedes[i].revents |= POLLIN;
         }
@@ -3430,7 +3461,7 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
         }
         fdHasEvent = PR_TRUE;
       }
-      if (FD_ISSET(filedes[i].fd, &wr)) {
+      if (FD_ISSET(filedes[i].fd, wrp)) {
         if (filedes[i].events & POLLOUT) {
           filedes[i].revents |= POLLOUT;
         }
@@ -3439,7 +3470,7 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
         }
         fdHasEvent = PR_TRUE;
       }
-      if (FD_ISSET(filedes[i].fd, &ex)) {
+      if (FD_ISSET(filedes[i].fd, exp)) {
         if (filedes[i].events & POLLPRI) {
           filedes[i].revents |= POLLPRI;
         }
@@ -3469,6 +3500,11 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
   }
   PR_ASSERT(-1 != timeout || rv != 0);
 
+#ifdef _PR_DYNAMIC_SELECT
+  PR_Free(rdp);
+  PR_Free(wrp);
+  PR_Free(exp);
+#endif
   return rv;
 }
 #endif /* _PR_NEED_FAKE_POLL */
