@@ -63,7 +63,7 @@ bool Platform::CreateFreezable(FreezableHandle& aHandle, size_t aSize) {
 }
 
 PlatformHandle Platform::CloneHandle(const PlatformHandle& aHandle) {
-  const int new_fd = dup(aHandle.get());
+  const int new_fd = fcntl(aHandle.get(), F_DUPFD_CLOEXEC, 0);
   if (new_fd < 0) {
     MOZ_LOG_FMT(gSharedMemoryLog, LogLevel::Warning,
                 "failed to duplicate file descriptor: {}", strerror(errno));
