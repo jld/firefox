@@ -413,7 +413,13 @@ mozilla::UniqueFileHandle ProcessWatcher::GetSignalPipe() {
   EnsureProcessWatcher();
   int fd = gSignalPipe[1];
   MOZ_ASSERT(fd >= 0);
+#ifdef F_DUPFD_CLOEXEC
+  fd = fcntl(fd, F_DUPFD_CLOEXEC, 0);
+#else
   fd = dup(fd);
+  int rv = fcntl(fd, F_SETFD, FD_CLOEXEC);
+  CHECK(rv == 0) << "FD_CLOEXEC failed";
+#endif
   MOZ_ASSERT(fd >= 0);
   return mozilla::UniqueFileHandle(fd);
 }
