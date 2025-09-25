@@ -81,7 +81,13 @@ FileDescriptor::UniquePlatformHandle FileDescriptor::Clone(
   if (aHandle < 0) {
     return UniqueFileHandle();
   }
+#ifdef F_DUPFD_CLOEXEC
+  newHandle = fcntl(aHandle, F_DUPFD_CLOEXEC, 0);
+#else
   newHandle = dup(aHandle);
+  int rv = fcntl(newHandle, F_SETFD, FD_CLOEXEC);
+  MOZ_RELEASE_ASSERT(rv == 0);
+#endif
   if (newHandle >= 0) {
     return UniqueFileHandle(newHandle);
   }
