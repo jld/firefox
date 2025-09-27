@@ -3348,7 +3348,7 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
   fd_set *rdp, *wrp, *exp;
   struct timeval tv, *tvp;
 #ifdef _PR_DYNAMIC_SELECT
-  int setsize;
+  size_t setsize;
 #else
   fd_set rd, wr, ex;
 #endif
@@ -3358,9 +3358,11 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
     return -1;
   }
 
-#ifdef _PR_DYNAMIC_SELECT
-  // FIXME: this computes maxfd twice (and not strictly the same,
-  // because pollfds can be excluded from the latter one)
+  /*
+   * Compute maxfd first, so that the dynamic allocation case can use it.
+   * This may be larger than strictly necessary if there are pollfds that
+   * don't map to any of the three select sets, but that is an edge case.
+   */
   maxfd = -1;
   for (i = 0; i < nfds; i++) {
     int osfd = filedes[i].fd;
@@ -3369,12 +3371,25 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
       maxfd = osfd;
     }
   }
-  setsize = PR_ROUNDUP(maxfd + 1, _PR_SELECT_NFDSIZE) / 8;
-  // FIXME: hard-coded NBBY is sus
-  // FIXME: no handling for errors
+
+  /*
+   * Requirements for _PR_DYNAMIC_SELECT:
+   * - fd_set contains an array of some basic type, and no other members
+   * - _PR_SELECT_NFDSIZE is the number of bits in that type
+   * - and it has 8 bits per byte
+   */
+#ifdef _PR_DYNAMIC_SELECT
+  setsize = PR_ROUNDUP((size_t)maxfd + 1, _PR_SELECT_NFDSIZE) / 8;
   rdp = PR_CALLOC(setsize);
   wrp = PR_CALLOC(setsize);
   exp = PR_CALLOC(setsize);
+  if (!rdp || !wrp || !exp) {
+    PR_FREEIF(rdp);
+    PR_FREEIF(wrp);
+    PR_FREEIF(exp);
+    errno = ENOMEM;
+    return -1;
+  }
 #else
   FD_ZERO(&rd);
   FD_ZERO(&wr);
@@ -3392,11 +3407,9 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
     tvp = &tv;
   }
 
-  maxfd = -1;
   for (i = 0; i < nfds; i++) {
     int osfd = filedes[i].fd;
     int events = filedes[i].events;
-    PRBool fdHasEvent = PR_FALSE;
 
 #ifndef _PR_DYNAMIC_SELECT
     PR_ASSERT(osfd < FD_SETSIZE);
@@ -3419,18 +3432,12 @@ int poll(struct pollfd* filedes, unsigned long nfds, int timeout) {
 
     if (events & (POLLIN | POLLRDNORM)) {
       FD_SET(osfd, rdp);
-      fdHasEvent = PR_TRUE;
     }
     if (events & (POLLOUT | POLLWRNORM)) {
       FD_SET(osfd, wrp);
-      fdHasEvent = PR_TRUE;
     }
     if (events & (POLLPRI | POLLRDBAND)) {
       FD_SET(osfd, exp);
-      fdHasEvent = PR_TRUE;
-    }
-    if (fdHasEvent && osfd > maxfd) {
-      maxfd = osfd;
     }
   }
 
